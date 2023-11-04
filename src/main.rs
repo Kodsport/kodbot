@@ -1,20 +1,6 @@
 fn main() {
-    let secrets = {
-        let path = "secrets.toml";
-        let contents = match std::fs::read_to_string(path) {
-            Ok(s) => s,
-            Err(_) => {
-                eprintln!("Couldn't read secrets from {path}.");
-                return;
-            },
-        };
-
-        match contents.parse::<toml::Table>() {
-            Ok(s) => s,
-            Err(_) => {
-                eprintln!("Couldn't read secrets from {path}.");
-                return;
-            },
-        }
-    };
+    let path = "secrets.toml";
+    let secrets = std::fs::read_to_string(path).ok()
+        .and_then(|c| c.parse::<toml::Table>().ok())
+        .expect(&format!("Couldn't read secrets from {path}"));
 }
