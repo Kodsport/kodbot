@@ -1,5 +1,4 @@
-use serenity::client::Client;
-use serenity::model::gateway::GatewayIntents;
+use twilight_http::Client;
 
 #[tokio::main]
 async fn main() {
@@ -9,9 +8,5 @@ async fn main() {
         .expect(&format!("Couldn't read secrets from {path}"));
 
     let token = secrets.get("token").and_then(|v| v.as_str()).expect("Couldn't read token from secrets.");
-    let mut client = Client::builder(token, GatewayIntents::default()).await.expect("Failed to start client.");
-
-    if client.start().await.is_err() {
-        eprintln!("Client stopped unexpectedly!");
-    }
+    let client = Client::new(String::from(token));
 }

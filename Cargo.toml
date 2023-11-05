@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 toml = "0.8"
-serenity = { version = "0.11", default-features = false, features = ["client", "gateway", "model", "rustls_backend"] }
+twilight-http = "0.15"
 tokio = { version = "1", features = ["full"] }
