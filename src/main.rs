@@ -2,14 +2,13 @@ use twilight_http::Client;
 use twilight_model::id::Id;
 
 mod state;
+mod secrets;
 mod welcome;
 
 #[tokio::main]
 async fn main() {
-    let path = "secrets.toml";
-    let secrets = std::fs::read_to_string(path).ok()
-        .and_then(|c| c.parse::<toml::Table>().ok())
-        .expect(&format!("Couldn't read secrets from {path}"));
+    let s = std::fs::read_to_string(secrets::DEFAULT_PATH).expect("Couldn't read secrets.");
+    let secrets: secrets::Secrets = toml::from_str(&s).expect("Couldn't read secrets.");
 
     let path = "config.toml";
     let config = std::fs::read_to_string(path).ok()
@@ -24,8 +23,7 @@ async fn main() {
         },
     };
 
-    let token = secrets.get("token").and_then(|v| v.as_str()).expect("Couldn't read token from secrets.");
-    let client = Client::new(String::from(token));
+    let client = Client::new(String::from(secrets.token));
 
     if state.welcome().is_none() {
         let channel_id = Id::new(
