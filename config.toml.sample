@@ -2,7 +2,7 @@
 # Copy this file to config.toml and insert the correct values for each of the fields.
 
 # The ID of the guild this bot will be used in.
-guild = "INSERT GUILD ID"
+guild = 1234567
 
 [welcome]
 # The ID of the channel used for the welcome message.
