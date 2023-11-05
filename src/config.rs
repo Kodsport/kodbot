@@ -19,8 +19,8 @@ pub struct Welcome {
 }
 
 impl Config {
-	pub fn guild(&self) -> &Id<GuildMarker> {
-		&self.guild
+	pub fn guild(&self) -> Id<GuildMarker> {
+		self.guild
 	}
 
 	pub fn welcome(&self) -> &Welcome {

@@ -65,8 +65,8 @@ impl Welcome {
 		}
 	}
 
-	pub fn message(&self) -> &Id<MessageMarker> {
-		&self.message
+	pub fn message(&self) -> Id<MessageMarker> {
+		self.message
 	}
 
 	pub fn set_message(&mut self, message: Id<MessageMarker>) {

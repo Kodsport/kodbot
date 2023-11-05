@@ -66,7 +66,7 @@ pub async fn handle_welcome_message(client: &Client, config: &Config, state: &mu
 		}
     }
 
-	let sent_message = state.welcome().unwrap().message().clone(); // FIX Don't return ref.
+	let sent_message = state.welcome().unwrap().message();
 	match validate_welcome_message(&client, channel, sent_message, &message).await {
 		Ok(_) => return,
 		Err(e) => match e {
