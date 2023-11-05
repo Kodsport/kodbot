@@ -23,18 +23,5 @@ async fn main() {
 
     let client = Client::new(String::from(secrets.token));
 
-    if state.welcome().is_none() {
-        let channel = config.welcome().channel();
-        let message = config.welcome().message();
-
-        if let Some(message) = message {
-            let message = welcome::post_welcome_message(&client, channel, message).await;
-            state.set_welcome(state::Welcome::new(message.id));
-            if let Err(_) = state::to_file(state::DEFAULT_PATH, &state) {
-                eprintln!("Couldn't write state to file!");
-            }
-        } else {
-            eprintln!("No welcome message was given in configuration.");
-        }
-    }
+    welcome::handle_welcome_message(&client, &config, &mut state).await;
 }
