@@ -1,2 +1,4 @@
 secrets.toml
+state.toml
+
 /target

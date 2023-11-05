@@ -34,5 +34,5 @@ async fn main() {
         .expect("Couldn't get path for welcome message.");
     let message = std::fs::read_to_string(message_path).expect(&format!("Couldn't read message from {message_path}."));
     let message = welcome::post_welcome_message(&client, channel_id, message).await;
-    println!("{:?}", message.id);
+    welcome::store_welcome_message_id(message.id);
 }
