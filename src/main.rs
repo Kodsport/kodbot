@@ -1,6 +1,7 @@
 use twilight_http::Client;
 use twilight_model::id::Id;
 
+mod state;
 mod welcome;
 
 #[tokio::main]
@@ -14,6 +15,14 @@ async fn main() {
     let config = std::fs::read_to_string(path).ok()
         .and_then(|c| c.parse::<toml::Table>().ok())
         .expect(&format!("Couldn't read configuration form {path}"));
+
+    let mut state = match state::from_file(state::DEFAULT_PATH) {
+        Ok(state) => state,
+        Err(e) => match e {
+            state::StateError::NotFound => state::State::new(),
+            _ => panic!("Failed to read state!"),
+        },
+    };
 
     let token = secrets.get("token").and_then(|v| v.as_str()).expect("Couldn't read token from secrets.");
     let client = Client::new(String::from(token));
