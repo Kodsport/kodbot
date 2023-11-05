@@ -1,0 +1,5 @@
+# This is a sample file for the configuration used by the bot.
+# Copy this file to config.toml and insert the correct values for each of the fields.
+
+# The ID of the guild this bot will be used in.
+guild = "INSERT GUILD ID"
