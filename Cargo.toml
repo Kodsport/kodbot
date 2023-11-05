@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 toml = "0.8"
 twilight-http = "0.15"
+twilight-model = "0.15"
 tokio = { version = "1", features = ["full"] }

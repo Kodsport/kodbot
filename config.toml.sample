@@ -3,3 +3,9 @@
 
 # The ID of the guild this bot will be used in.
 guild = "INSERT GUILD ID"
+
+[welcome]
+# The ID of the channel used for the welcome message.
+channel = 1234567
+# The path to the file that contains the text used for the message in the welcome channel.
+file = "welcome.txt"
