@@ -11,10 +11,10 @@ pub enum WelcomeError {
 	Other,
 }
 
-pub async fn post_welcome_message<M: AsRef<str>>(client: &Client, channel: Id<ChannelMarker>, message: M) -> Message {
+pub async fn post_welcome_message<M: AsRef<str>>(client: &Client, channel: Id<ChannelMarker>, content: M) -> Message {
 	client
 		.create_message(channel)
-		.content(message.as_ref()).expect("Message was malformed.")
+		.content(content.as_ref()).expect("Message was malformed.")
 		.await.expect("Couldn't send welcome message.")
 		.model().await.expect("Couldn't deserialize message from response.")
 }
@@ -31,7 +31,7 @@ pub async fn validate_welcome_message<M: AsRef<str>>(
 	client: &Client,
 	channel: Id<ChannelMarker>,
 	message: Id<MessageMarker>,
-	intended_message: M
+	content: M
 ) -> Result<(), WelcomeError> {
 	let response = match client.message(channel, message).await {
 		Ok(response) => response,
@@ -44,7 +44,7 @@ pub async fn validate_welcome_message<M: AsRef<str>>(
 	let message = response.model().await
 		.expect("Couldn't deserialize message from response.");
 
-	if message.content != intended_message.as_ref() {
+	if message.content != content.as_ref() {
 		return Err(WelcomeError::WrongContent);
 	}
 
@@ -53,29 +53,29 @@ pub async fn validate_welcome_message<M: AsRef<str>>(
 
 pub async fn handle_welcome_message(client: &Client, config: &Config, state: &mut State) {
     let channel = config.welcome().channel();
-	let message = match config.welcome().message() {
-		Some(message) => message,
+	let content = match config.welcome().content() {
+		Some(content) => content,
 		None => return, // There is no message to handle.
 	};
 
 	if state.welcome().is_none() {
-		let message = post_welcome_message(&client, channel, &message).await;
+		let message = post_welcome_message(&client, channel, &content).await;
 		state.set_welcome(crate::state::Welcome::new(message.id));
 		if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, &state) {
 			eprintln!("Couldn't write state to file!");
 		}
     }
 
-	let sent_message = state.welcome().unwrap().message();
-	match validate_welcome_message(&client, channel, sent_message, &message).await {
+	let message = state.welcome().unwrap().message();
+	match validate_welcome_message(&client, channel, message, &content).await {
 		Ok(_) => return,
 		Err(e) => match e {
 			WelcomeError::MessageNotFound => {
-				let message = post_welcome_message(&client, channel, message).await;
+				let message = post_welcome_message(&client, channel, content).await;
 				state.set_welcome(crate::state::Welcome::new(message.id));
 			},
 			WelcomeError::WrongContent => {
-				edit_welcome_message(&client, channel, sent_message, message).await;
+				edit_welcome_message(&client, channel, message, content).await;
 			},
 			WelcomeError::Other => return,
 		}

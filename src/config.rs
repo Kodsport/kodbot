@@ -33,7 +33,7 @@ impl Welcome {
 		self.channel
 	}
 
-	pub fn message(&self) -> Option<String> {
+	pub fn content(&self) -> Option<String> {
 		// Start by checking the text key, i.e. it will override the file.
 		if let Some(t) = &self.text {
 			return Some(t.clone());
@@ -41,8 +41,8 @@ impl Welcome {
 
 		if let Some(f) = &self.file {
 			// TODO Throwing away info here by turning it into an Option.
-			let message = std::fs::read_to_string(f).ok();
-			return message;
+			let content = std::fs::read_to_string(f).ok();
+			return content;
 		}
 
 		// Neither a file path nor a text was given in the configuration,
