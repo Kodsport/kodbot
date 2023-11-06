@@ -7,5 +7,7 @@ edition = "2021"
 toml = "0.8"
 serde = "1.0"
 twilight-http = "0.15"
+twilight-gateway = "0.15"
 twilight-model = "0.15"
+twilight-util = { version = "0.15", features = ["builder"] }
 tokio = { version = "1", features = ["full"] }
