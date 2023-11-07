@@ -38,7 +38,6 @@ async fn main() {
 	let mut global_commands: Vec<Command> = Vec::new();
 	let mut guild_commands: Vec<Command> = Vec::new();
 
-	guild_commands.push(CommandBuilder::new("ping", "send ping receive ...", CommandType::ChatInput).guild_id(config.guild()).build());
 	guild_commands.push(
 		CommandBuilder::new("member", "command for handling members (UPDATE THIS DESCRIPTION!)", CommandType::ChatInput)
 			.guild_id(config.guild())
@@ -76,21 +75,7 @@ async fn event_handler(event: Event, client: Arc<Client>, config: config::Config
 	match event {
 		Event::InteractionCreate(interaction) => {
 			if let InteractionData::ApplicationCommand(command) = interaction.data.clone().unwrap() { // TODO Don't unwrap
-				if command.name == "ping" {
-					let interaction_client = client.interaction(secrets.discord.application);
-					let response = InteractionResponse {
-						kind: InteractionResponseType::ChannelMessageWithSource,
-						data: Some(InteractionResponseData {
-							content: Some(String::from("pong")),
-							..Default::default()
-						}),
-					};
-
-					let r = interaction_client.create_response(interaction.id, &interaction.token, &response).await;
-					if r.is_err() {
-						eprintln!("Something went wrong when responding to command.");
-					}
-				} else if command.name == "member" {
+				if command.name == "member" {
 					let subcommand = command.options.first().unwrap();
 					match subcommand.name.as_str() {
 						"verify" => {
