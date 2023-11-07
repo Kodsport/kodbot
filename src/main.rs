@@ -1,8 +1,10 @@
 use twilight_http::Client;
 use twilight_gateway::{Shard, ShardId, Intents, Event};
-use twilight_util::builder::command::CommandBuilder;
+use twilight_util::builder::command::{CommandBuilder, SubCommandBuilder, StringBuilder};
 use twilight_model::application::command::{Command, CommandType};
 use twilight_model::application::interaction::InteractionData;
+use twilight_model::application::interaction::application_command::CommandOptionValue;
+use twilight_model::channel::message::MessageFlags;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType, InteractionResponseData};
 
 use std::sync::Arc;
@@ -37,6 +39,13 @@ async fn main() {
 	let mut guild_commands: Vec<Command> = Vec::new();
 
 	guild_commands.push(CommandBuilder::new("ping", "send ping receive ...", CommandType::ChatInput).guild_id(config.guild()).build());
+	guild_commands.push(
+		CommandBuilder::new("member", "command for handling members (UPDATE THIS DESCRIPTION!)", CommandType::ChatInput)
+			.guild_id(config.guild())
+			.option(SubCommandBuilder::new("verify", "Verify your membership")
+				.option(StringBuilder::new("email", "The email you used when registering").required(true).build())
+				.build())
+			.build());
 
 	let interaction_client = client.interaction(secrets.discord.application);
 
@@ -59,11 +68,11 @@ async fn main() {
 			},
 		};
 
-		tokio::spawn(event_handler(event, Arc::clone(&client), secrets.clone()));
+		tokio::spawn(event_handler(event, Arc::clone(&client), config.clone(), secrets.clone()));
 	}
 }
 
-async fn event_handler(event: Event, client: Arc<Client>, secrets: secrets::Secrets) {
+async fn event_handler(event: Event, client: Arc<Client>, config: config::Config, secrets: secrets::Secrets) {
 	match event {
 		Event::InteractionCreate(interaction) => {
 			if let InteractionData::ApplicationCommand(command) = interaction.data.clone().unwrap() { // TODO Don't unwrap
@@ -80,6 +89,57 @@ async fn event_handler(event: Event, client: Arc<Client>, secrets: secrets::Secr
 					let r = interaction_client.create_response(interaction.id, &interaction.token, &response).await;
 					if r.is_err() {
 						eprintln!("Something went wrong when responding to command.");
+					}
+				} else if command.name == "member" {
+					let subcommand = command.options.first().unwrap();
+					match subcommand.name.as_str() {
+						"verify" => {
+							if let CommandOptionValue::SubCommand(data) = &subcommand.value {
+								let email = match &data.first().unwrap().value {
+									CommandOptionValue::String(email) => email,
+									_ => panic!("wrong option type!"),
+								};
+
+								let is_member = ebas::verify_membership(email.clone(), &config, &secrets).await;
+
+								let response = if is_member {
+									let user = match (&interaction.user, &interaction.member) {
+										(Some(user), _) => user,
+										(_, Some(member)) => &member.user.as_ref().expect("User data in member should be set!"),
+										(None, None) => panic!("Either user or member should be set!"),
+									};
+
+									// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
+									client.add_guild_member_role(config.guild(), user.id, config.member().role()).await.expect("Couldn't add role to member.");
+
+									InteractionResponse {
+										kind: InteractionResponseType::ChannelMessageWithSource,
+										data: Some(InteractionResponseData {
+											content: Some(format!("Thanks for your membership! You have been added to <@&{}>.", config.member().role())),
+											flags: Some(MessageFlags::EPHEMERAL),
+											..Default::default()
+										}),
+									}
+								} else {
+									InteractionResponse {
+										kind: InteractionResponseType::ChannelMessageWithSource,
+										data: Some(InteractionResponseData {
+											content: Some(String::from("We have no registered member with this email. After you have registered, you can rerun the command.")),
+											flags: Some(MessageFlags::EPHEMERAL),
+											..Default::default()
+										}),
+									}
+								};
+
+								let interaction_client = client.interaction(secrets.discord.application);
+
+								let r = interaction_client.create_response(interaction.id, &interaction.token, &response).await;
+								if r.is_err() {
+									eprintln!("Something went wrong when responding to command.");
+								}
+							}
+						},
+						name => panic!("No such subcommand {}", name),
 					}
 				}
 			}

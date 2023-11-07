@@ -1,27 +1,33 @@
 use twilight_model::id::Id;
-use twilight_model::id::marker::{GuildMarker, ChannelMarker};
+use twilight_model::id::marker::{GuildMarker, ChannelMarker, RoleMarker};
 
 use serde::{Serialize, Deserialize};
 
 pub const DEFAULT_PATH: &str = "config.toml";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Config {
 	guild: Id<GuildMarker>,
 	welcome: Welcome,
 	ebas: Ebas,
+	member: Member,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Welcome {
 	channel: Id<ChannelMarker>,
 	file: Option<String>,
 	text: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Ebas {
 	url: String,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct Member {
+	role: Id<RoleMarker>,
 }
 
 impl Config {
@@ -35,6 +41,10 @@ impl Config {
 
 	pub fn ebas(&self) -> &Ebas {
 		&self.ebas
+	}
+
+	pub fn member(&self) -> &Member {
+		&self.member
 	}
 }
 
@@ -64,5 +74,11 @@ impl Welcome {
 impl Ebas {
 	pub fn url(&self) -> &String {
 		&self.url
+	}
+}
+
+impl Member {
+	pub fn role(&self) -> Id<RoleMarker> {
+		self.role
 	}
 }

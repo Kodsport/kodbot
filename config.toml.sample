@@ -12,3 +12,6 @@ file = "welcome.txt"
 
 [ebas]
 url = "https://ebas.<something>.se/apis"
+
+[member]
+role = "1234567"
