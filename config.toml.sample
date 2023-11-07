@@ -9,3 +9,6 @@ guild = "1234567"
 channel = "1234567"
 # The path to the file that contains the text used for the message in the welcome channel.
 file = "welcome.txt"
+
+[ebas]
+url = "https://ebas.<something>.se/apis"

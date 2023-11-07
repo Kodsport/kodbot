@@ -9,6 +9,7 @@ pub const DEFAULT_PATH: &str = "config.toml";
 pub struct Config {
 	guild: Id<GuildMarker>,
 	welcome: Welcome,
+	ebas: Ebas,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -18,6 +19,11 @@ pub struct Welcome {
 	text: Option<String>,
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct Ebas {
+	url: String,
+}
+
 impl Config {
 	pub fn guild(&self) -> Id<GuildMarker> {
 		self.guild
@@ -25,6 +31,10 @@ impl Config {
 
 	pub fn welcome(&self) -> &Welcome {
 		&self.welcome
+	}
+
+	pub fn ebas(&self) -> &Ebas {
+		&self.ebas
 	}
 }
 
@@ -48,5 +58,11 @@ impl Welcome {
 		// Neither a file path nor a text was given in the configuration,
 		// so we have no welcome message.
 		None
+	}
+}
+
+impl Ebas {
+	pub fn url(&self) -> &String {
+		&self.url
 	}
 }

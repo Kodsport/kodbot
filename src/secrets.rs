@@ -7,6 +7,18 @@ pub const DEFAULT_PATH: &str = "secrets.toml";
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Secrets {
+	pub discord: Discord,
+	pub ebas: Ebas,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Discord {
 	pub token: String,
-	pub application_id: Id<ApplicationMarker>,
+	pub application: Id<ApplicationMarker>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Ebas {
+	pub api_key: String,
+	pub id: String,
 }

@@ -11,6 +11,7 @@ mod config;
 mod state;
 mod secrets;
 mod welcome;
+mod ebas;
 
 #[tokio::main]
 async fn main() {
@@ -28,7 +29,7 @@ async fn main() {
         },
     };
 
-    let client = Arc::new(Client::new(secrets.token.clone()));
+    let client = Arc::new(Client::new(secrets.discord.token.clone()));
 
     welcome::handle_welcome_message(&client, &config, &mut state).await;
 
@@ -37,13 +38,13 @@ async fn main() {
 
     guild_commands.push(CommandBuilder::new("ping", "send ping receive ...", CommandType::ChatInput).guild_id(config.guild()).build());
 
-    let interaction_client = client.interaction(secrets.application_id);
+    let interaction_client = client.interaction(secrets.discord.application);
 
     // "Setting" global/guild commands will replace existing commands with the new ones.
     interaction_client.set_global_commands(&global_commands).await.expect("Couldn't set global commands.");
     interaction_client.set_guild_commands(config.guild(), &guild_commands).await.expect("Couldn't set guild commands.");
 
-    let mut shard = Shard::new(ShardId::ONE, secrets.token.clone(), Intents::empty());
+    let mut shard = Shard::new(ShardId::ONE, secrets.discord.token.clone(), Intents::empty());
 
     loop {
         let event = match shard.next_event().await {
@@ -67,7 +68,7 @@ async fn event_handler(event: Event, client: Arc<Client>, secrets: secrets::Secr
         Event::InteractionCreate(interaction) => {
             if let InteractionData::ApplicationCommand(command) = interaction.data.clone().unwrap() { // TODO Don't unwrap
                 if command.name == "ping" {
-                    let interaction_client = client.interaction(secrets.application_id);
+                    let interaction_client = client.interaction(secrets.discord.application);
                     let response = InteractionResponse {
                         kind: InteractionResponseType::ChannelMessageWithSource,
                         data: Some(InteractionResponseData {
