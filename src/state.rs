@@ -5,18 +5,18 @@ use serde::{Serialize, Deserialize};
 
 pub const DEFAULT_PATH: &str = "state.toml";
 
-#[derive(Deserialize, Serialize, Clone, Copy)]
+#[derive(Deserialize, Serialize)]
 pub struct State {
 	welcome: Option<Welcome>,
 	member: Option<Member>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy)]
+#[derive(Deserialize, Serialize)]
 pub struct Welcome {
 	message: Id<MessageMarker>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy)]
+#[derive(Deserialize, Serialize)]
 pub struct Member {
 	role: Id<RoleMarker>,
 }
@@ -56,24 +56,24 @@ impl State {
 		}
 	}
 
-	pub fn welcome(&self) -> &Option<Welcome> {
-		&self.welcome
+	pub fn welcome(&self) -> Option<&Welcome> {
+		self.welcome.as_ref()
 	}
 
-	pub fn welcome_mut(&mut self) -> &mut Option<Welcome> {
-		&mut self.welcome
+	pub fn welcome_mut(&mut self) -> Option<&mut Welcome> {
+		self.welcome.as_mut()
 	}
 
 	pub fn set_welcome(&mut self, welcome: Welcome) {
 		self.welcome = Some(welcome);
 	}
 
-	pub fn member(&self) -> &Option<Member> {
-		&self.member
+	pub fn member(&self) -> Option<&Member> {
+		self.member.as_ref()
 	}
 
-	pub fn member_mut(&mut self) -> &mut Option<Member> {
-		&mut self.member
+	pub fn member_mut(&mut self) -> Option<&mut Member> {
+		self.member.as_mut()
 	}
 
 	pub fn set_member(&mut self, member: Member) {

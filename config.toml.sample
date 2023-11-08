@@ -15,3 +15,6 @@ url = "https://ebas.<something>.se/apis"
 
 [member]
 name = "<member role name>"
+
+[member.permission]
+purge = [{ role = "<role id>" }, { user = "<user id>" }]

@@ -1,5 +1,5 @@
 use twilight_model::id::Id;
-use twilight_model::id::marker::{GuildMarker, ChannelMarker};
+use twilight_model::id::marker::{GuildMarker, ChannelMarker, UserMarker, RoleMarker};
 
 use serde::{Serialize, Deserialize};
 
@@ -28,6 +28,19 @@ pub struct Ebas {
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Member {
 	name: String,
+	permission: MemberPermission,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct MemberPermission {
+	purge: Vec<Permission>,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum Permission {
+	User(Id<UserMarker>),
+	Role(Id<RoleMarker>),
 }
 
 impl Config {
@@ -80,5 +93,15 @@ impl Ebas {
 impl Member {
 	pub fn name(&self) -> &String {
 		&self.name
+	}
+
+	pub fn permission(&self) -> &MemberPermission {
+		&self.permission
+	}
+}
+
+impl MemberPermission {
+	pub fn purge(&self) -> &Vec<Permission> {
+		&self.purge
 	}
 }
