@@ -1,19 +1,75 @@
 use twilight_http::Client;
 use twilight_gateway::{Shard, ShardId, Intents, Event};
-use twilight_util::builder::command::{CommandBuilder, SubCommandBuilder, StringBuilder};
-use twilight_model::application::command::{Command, CommandType};
-use twilight_model::application::interaction::InteractionData;
-use twilight_model::application::interaction::application_command::CommandOptionValue;
 use twilight_model::channel::message::MessageFlags;
 use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType, InteractionResponseData};
 
+use vesper::macros::command;
+use vesper::framework::{Framework, DefaultCommandResult};
+use vesper::context::SlashContext;
+
 use std::sync::Arc;
+use std::sync::RwLock;
 
 mod config;
 mod state;
 mod secrets;
 mod welcome;
 mod ebas;
+
+pub struct Context {
+	config: config::Config,
+	secrets: secrets::Secrets,
+	state: RwLock<state::State>,
+}
+
+#[command(chat, name = "verify")]
+#[description = "Verify your membership"]
+async fn member_verify(
+	ctx: &SlashContext<Arc<Context>>,
+	#[description = "The email you used when registering"]
+	email: String
+) -> DefaultCommandResult {
+	let is_member = ebas::verify_membership(Arc::clone(ctx.data), email).await;
+
+	let response = if is_member {
+		let user = match (&ctx.interaction.user, &ctx.interaction.member) {
+			(Some(user), _) => user,
+			(_, Some(member)) => match &member.user {
+				Some(user) => user,
+				None => panic!("User data in member should be set!"),
+			},
+			(None, None) => panic!("Either user or member should be set!"),
+		};
+
+		// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
+		ctx.http_client().add_guild_member_role(ctx.data.config.guild(), user.id, ctx.data.config.member().role()).await.expect("Couldn't add role to member.");
+
+		InteractionResponse {
+			kind: InteractionResponseType::ChannelMessageWithSource,
+			data: Some(InteractionResponseData {
+				content: Some(format!("Thanks for your membership! You have been added to <@&{}>.", ctx.data.config.member().role())),
+				flags: Some(MessageFlags::EPHEMERAL),
+				..Default::default()
+			}),
+		}
+	} else {
+		InteractionResponse {
+			kind: InteractionResponseType::ChannelMessageWithSource,
+			data: Some(InteractionResponseData {
+				content: Some(String::from("We have no registered member with this email. After you have registered, you can rerun the command.")),
+				flags: Some(MessageFlags::EPHEMERAL),
+				..Default::default()
+			}),
+		}
+	};
+
+	let r = ctx.interaction_client.create_response(ctx.interaction.id, &ctx.interaction.token, &response).await;
+	if r.is_err() {
+		eprintln!("Something went wrong when responding to command.");
+	}
+
+	Ok(())
+}
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +79,7 @@ async fn main() {
 	let s = std::fs::read_to_string(config::DEFAULT_PATH).expect("Couldn't read configuration.");
 	let config: config::Config = toml::from_str(&s).expect("Couldn't read configuration.");
 
-	let mut state = match state::from_file(state::DEFAULT_PATH) {
+	let state = match state::from_file(state::DEFAULT_PATH) {
 		Ok(state) => state,
 		Err(e) => match e {
 			state::StateError::NotFound => state::State::new(),
@@ -31,28 +87,29 @@ async fn main() {
 		},
 	};
 
-	let client = Arc::new(Client::new(secrets.discord.token.clone()));
+	let context = Arc::new(Context {
+		config: config,
+		secrets: secrets,
+		state: RwLock::new(state),
+	});
 
-	welcome::handle_welcome_message(&client, &config, &mut state).await;
+	let client = Arc::new(Client::new(context.secrets.discord.token.clone()));
 
-	let mut global_commands: Vec<Command> = Vec::new();
-	let mut guild_commands: Vec<Command> = Vec::new();
+	welcome::handle_welcome_message(&client, Arc::clone(&context)).await;
 
-	guild_commands.push(
-		CommandBuilder::new("member", "command for handling members (UPDATE THIS DESCRIPTION!)", CommandType::ChatInput)
-			.guild_id(config.guild())
-			.option(SubCommandBuilder::new("verify", "Verify your membership")
-				.option(StringBuilder::new("email", "The email you used when registering").required(true).build())
-				.build())
-			.build());
+	let framework = Arc::new(Framework::builder(Arc::clone(&client), context.secrets.discord.application, Arc::clone(&context))
+		.group(|g| g
+			.name("member")
+			.description("INSERT DESC")
+			.command(member_verify))
+		.build());
 
-	let interaction_client = client.interaction(secrets.discord.application);
+	let result = framework.register_guild_commands(context.config.guild()).await;
+	if result.is_err() {
+		panic!("Failed to register commands!");
+	}
 
-	// "Setting" global/guild commands will replace existing commands with the new ones.
-	interaction_client.set_global_commands(&global_commands).await.expect("Couldn't set global commands.");
-	interaction_client.set_guild_commands(config.guild(), &guild_commands).await.expect("Couldn't set guild commands.");
-
-	let mut shard = Shard::new(ShardId::ONE, secrets.discord.token.clone(), Intents::empty());
+	let mut shard = Shard::new(ShardId::ONE, context.secrets.discord.token.clone(), Intents::empty());
 
 	loop {
 		let event = match shard.next_event().await {
@@ -67,67 +124,15 @@ async fn main() {
 			},
 		};
 
-		tokio::spawn(event_handler(event, Arc::clone(&client), config.clone(), secrets.clone()));
+		tokio::spawn(event_handler(event, Arc::clone(&framework)));
 	}
 }
 
-async fn event_handler(event: Event, client: Arc<Client>, config: config::Config, secrets: secrets::Secrets) {
+async fn event_handler(event: Event, framework: Arc<Framework<Arc<Context>>>) {
 	match event {
 		Event::InteractionCreate(interaction) => {
-			if let InteractionData::ApplicationCommand(command) = interaction.data.clone().unwrap() { // TODO Don't unwrap
-				if command.name == "member" {
-					let subcommand = command.options.first().unwrap();
-					match subcommand.name.as_str() {
-						"verify" => {
-							if let CommandOptionValue::SubCommand(data) = &subcommand.value {
-								let email = match &data.first().unwrap().value {
-									CommandOptionValue::String(email) => email,
-									_ => panic!("wrong option type!"),
-								};
-
-								let is_member = ebas::verify_membership(email.clone(), &config, &secrets).await;
-
-								let response = if is_member {
-									let user = match (&interaction.user, &interaction.member) {
-										(Some(user), _) => user,
-										(_, Some(member)) => &member.user.as_ref().expect("User data in member should be set!"),
-										(None, None) => panic!("Either user or member should be set!"),
-									};
-
-									// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
-									client.add_guild_member_role(config.guild(), user.id, config.member().role()).await.expect("Couldn't add role to member.");
-
-									InteractionResponse {
-										kind: InteractionResponseType::ChannelMessageWithSource,
-										data: Some(InteractionResponseData {
-											content: Some(format!("Thanks for your membership! You have been added to <@&{}>.", config.member().role())),
-											flags: Some(MessageFlags::EPHEMERAL),
-											..Default::default()
-										}),
-									}
-								} else {
-									InteractionResponse {
-										kind: InteractionResponseType::ChannelMessageWithSource,
-										data: Some(InteractionResponseData {
-											content: Some(String::from("We have no registered member with this email. After you have registered, you can rerun the command.")),
-											flags: Some(MessageFlags::EPHEMERAL),
-											..Default::default()
-										}),
-									}
-								};
-
-								let interaction_client = client.interaction(secrets.discord.application);
-
-								let r = interaction_client.create_response(interaction.id, &interaction.token, &response).await;
-								if r.is_err() {
-									eprintln!("Something went wrong when responding to command.");
-								}
-							}
-						},
-						name => panic!("No such subcommand {}", name),
-					}
-				}
-			}
+			let interaction = interaction.0;
+			framework.process(interaction).await;
 		},
 		_ => (),
 	}

@@ -1,18 +1,18 @@
 use reqwest::{Client, Url};
 use reqwest::header;
 
-use crate::config::Config;
-use crate::secrets::Secrets;
+use std::sync::Arc;
+use crate::Context;
 
-pub async fn verify_membership(email: String, config: &Config, secrets: &Secrets) -> bool {
+pub async fn verify_membership(context: Arc<Context>, email: String) -> bool {
 	let client = Client::new();
-	let mut url = Url::parse(&config.ebas().url()).expect("Couldn't parse URL for eBas.");
+	let mut url = Url::parse(&context.config.ebas().url()).expect("Couldn't parse URL for eBas.");
 	url.path_segments_mut().expect("Couldn't get path segments for eBas URL.").push("confirm_membership.json");
 	let body = serde_json::json!({
 		"request" : {
 			"action" : "confirm_membership",
-			"association_number" : secrets.ebas.id,
-			"api_key" : secrets.ebas.api_key,
+			"association_number" : context.secrets.ebas.id,
+			"api_key" : context.secrets.ebas.api_key,
 			"year_id" : time::OffsetDateTime::now_utc().year(),
 			"email": email,
 		}

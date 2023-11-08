@@ -2,8 +2,8 @@ use twilight_http::Client;
 use twilight_model::id::{Id, marker::{ChannelMarker, MessageMarker}};
 use twilight_model::channel::Message;
 
-use crate::config::Config;
-use crate::state::State;
+use std::sync::Arc;
+use crate::Context;
 
 pub enum WelcomeError {
 	MessageNotFound,
@@ -51,28 +51,28 @@ pub async fn validate_welcome_message<M: AsRef<str>>(
 	Ok(())
 }
 
-pub async fn handle_welcome_message(client: &Client, config: &Config, state: &mut State) {
-    let channel = config.welcome().channel();
-	let content = match config.welcome().content() {
+pub async fn handle_welcome_message(client: &Client, context: Arc<Context>) {
+    let channel = context.config.welcome().channel();
+	let content = match context.config.welcome().content() {
 		Some(content) => content,
 		None => return, // There is no message to handle.
 	};
 
-	if state.welcome().is_none() {
+	if context.state.read().unwrap().welcome().is_none() {
 		let message = post_welcome_message(&client, channel, &content).await;
-		state.set_welcome(crate::state::Welcome::new(message.id));
-		if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, &state) {
+		context.state.write().unwrap().set_welcome(crate::state::Welcome::new(message.id));
+		if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, &context.state.read().unwrap()) {
 			eprintln!("Couldn't write state to file!");
 		}
     }
 
-	let message = state.welcome().unwrap().message();
+	let message = context.state.read().unwrap().welcome().unwrap().message();
 	match validate_welcome_message(&client, channel, message, &content).await {
 		Ok(_) => return,
 		Err(e) => match e {
 			WelcomeError::MessageNotFound => {
 				let message = post_welcome_message(&client, channel, content).await;
-				state.set_welcome(crate::state::Welcome::new(message.id));
+				context.state.write().unwrap().set_welcome(crate::state::Welcome::new(message.id));
 			},
 			WelcomeError::WrongContent => {
 				edit_welcome_message(&client, channel, message, content).await;
@@ -81,7 +81,7 @@ pub async fn handle_welcome_message(client: &Client, config: &Config, state: &mu
 		}
 	}
 
-	if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, &state) {
+	if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, &context.state.read().unwrap()) {
 		eprintln!("Couldn't write state to file!");
 	}
 }
