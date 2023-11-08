@@ -1,0 +1,15 @@
+guild = "407149490307334144"
+
+[welcome]
+channel = "557097166573666304"
+file = "welcome.msg"
+
+[ebas]
+url = "https://ebas.ungvetenskapssport.se/apis"
+
+[member]
+name = "Medlem"
+
+[member.permission]
+# Only let @Styrelsen purge membership status
+purge = [{ role = "407150862046199808" }]
