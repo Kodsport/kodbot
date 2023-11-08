@@ -1,5 +1,5 @@
 use twilight_model::id::Id;
-use twilight_model::id::marker::MessageMarker;
+use twilight_model::id::marker::{MessageMarker, RoleMarker};
 
 use serde::{Serialize, Deserialize};
 
@@ -8,11 +8,17 @@ pub const DEFAULT_PATH: &str = "state.toml";
 #[derive(Deserialize, Serialize, Clone, Copy)]
 pub struct State {
 	welcome: Option<Welcome>,
+	member: Option<Member>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Copy)]
 pub struct Welcome {
 	message: Id<MessageMarker>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy)]
+pub struct Member {
+	role: Id<RoleMarker>,
 }
 
 pub enum StateError {
@@ -46,6 +52,7 @@ impl State {
 	pub fn new() -> State {
 		State {
 			welcome: None,
+			member: None,
 		}
 	}
 
@@ -59,6 +66,18 @@ impl State {
 
 	pub fn set_welcome(&mut self, welcome: Welcome) {
 		self.welcome = Some(welcome);
+	}
+
+	pub fn member(&self) -> &Option<Member> {
+		&self.member
+	}
+
+	pub fn member_mut(&mut self) -> &mut Option<Member> {
+		&mut self.member
+	}
+
+	pub fn set_member(&mut self, member: Member) {
+		self.member = Some(member)
 	}
 }
 
@@ -75,6 +94,22 @@ impl Welcome {
 
 	pub fn set_message(&mut self, message: Id<MessageMarker>) {
 		self.message = message
+	}
+}
+
+impl Member {
+	pub fn new(role: Id<RoleMarker>) -> Member {
+		Member {
+			role
+		}
+	}
+
+	pub fn role(&self) -> Id<RoleMarker> {
+		self.role
+	}
+
+	pub fn set_role(&mut self, role: Id<RoleMarker>) {
+		self.role = role
 	}
 }
 

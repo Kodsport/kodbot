@@ -41,13 +41,17 @@ async fn member_verify(
 			(None, None) => panic!("Either user or member should be set!"),
 		};
 
+		let guild = ctx.data.config.guild();
+		let user = user.id;
+		let role = ctx.data.state.read().unwrap().member().unwrap().role();
+
 		// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
-		ctx.http_client().add_guild_member_role(ctx.data.config.guild(), user.id, ctx.data.config.member().role()).await.expect("Couldn't add role to member.");
+		ctx.http_client().add_guild_member_role(guild, user, role).await.expect("Couldn't add role to member.");
 
 		InteractionResponse {
 			kind: InteractionResponseType::ChannelMessageWithSource,
 			data: Some(InteractionResponseData {
-				content: Some(format!("Thanks for your membership! You have been added to <@&{}>.", ctx.data.config.member().role())),
+				content: Some(format!("Thanks for your membership! You have been added to <@&{}>.", role)),
 				flags: Some(MessageFlags::EPHEMERAL),
 				..Default::default()
 			}),
@@ -96,6 +100,46 @@ async fn main() {
 	let client = Arc::new(Client::new(context.secrets.discord.token.clone()));
 
 	welcome::handle_welcome_message(&client, Arc::clone(&context)).await;
+
+	{
+		let name = context.config.member().name();
+		// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
+		let roles = client.roles(context.config.guild()).await
+			.expect("Couldn't fetch roles.")
+			.models().await
+			.expect("Couldn't serialize response.");
+
+		let role = roles.iter().find(|role| &role.name == name);
+
+		// TODO Check if role with name already exists.
+		let role = if let Some(role) = role {
+			println!("role already exist");
+			role.id
+		} else {
+			println!("Role doesn't exist, creating...");
+			// The role does not exist in the guild, so we create it.
+			// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
+			let role = client.create_role(context.config.guild()).name(name).await
+				.expect("Couldn't create role")
+				.model().await
+				.expect("Couldn't serialize response.");
+			role.id
+		};
+
+		let state = &mut context.state.write().unwrap();
+
+		if let Some(member) = state.member_mut() {
+			if member.role() != role {
+				member.set_role(role);
+			}
+		} else {
+			state.set_member(state::Member::new(role));
+		}
+		println!("Writing new state");
+		if let Err(_) = state::to_file(crate::state::DEFAULT_PATH, state) {
+			eprintln!("Couldn't write state to file!");
+		}
+	}
 
 	let framework = Arc::new(Framework::builder(Arc::clone(&client), context.secrets.discord.application, Arc::clone(&context))
 		.group(|g| g

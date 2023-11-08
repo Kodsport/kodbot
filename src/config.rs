@@ -1,5 +1,5 @@
 use twilight_model::id::Id;
-use twilight_model::id::marker::{GuildMarker, ChannelMarker, RoleMarker};
+use twilight_model::id::marker::{GuildMarker, ChannelMarker};
 
 use serde::{Serialize, Deserialize};
 
@@ -27,7 +27,7 @@ pub struct Ebas {
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Member {
-	role: Id<RoleMarker>,
+	name: String,
 }
 
 impl Config {
@@ -78,7 +78,7 @@ impl Ebas {
 }
 
 impl Member {
-	pub fn role(&self) -> Id<RoleMarker> {
-		self.role
+	pub fn name(&self) -> &String {
+		&self.name
 	}
 }
