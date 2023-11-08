@@ -9,6 +9,8 @@ guild = "1234567"
 channel = "1234567"
 # The path to the file that contains the text used for the message in the welcome channel.
 file = "welcome.txt"
+# A welcome message can also be specified inline. If this option is used, it will override the file.
+#text = "This is a welcome message!"
 
 [ebas]
 url = "https://ebas.<something>.se/apis"
