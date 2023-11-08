@@ -53,6 +53,10 @@ impl State {
 		&self.welcome
 	}
 
+	pub fn welcome_mut(&mut self) -> &mut Option<Welcome> {
+		&mut self.welcome
+	}
+
 	pub fn set_welcome(&mut self, welcome: Welcome) {
 		self.welcome = Some(welcome);
 	}

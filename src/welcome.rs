@@ -11,6 +11,7 @@ pub enum WelcomeError {
 	Other,
 }
 
+// NOTE This requires the SEND_MESSAGES permission.
 pub async fn post_welcome_message<M: AsRef<str>>(client: &Client, channel: Id<ChannelMarker>, content: M) -> Message {
 	client
 		.create_message(channel)
@@ -19,6 +20,7 @@ pub async fn post_welcome_message<M: AsRef<str>>(client: &Client, channel: Id<Ch
 		.model().await.expect("Couldn't deserialize message from response.")
 }
 
+// NOTE This doesn't require any permissions, since we only edit our own messages.
 pub async fn edit_welcome_message<M: AsRef<str>>(client: &Client, channel: Id<ChannelMarker>, message: Id<MessageMarker>, content: M) {
 	client
 		.update_message(channel, message)
@@ -58,30 +60,30 @@ pub async fn handle_welcome_message(client: &Client, context: Arc<Context>) {
 		None => return, // There is no message to handle.
 	};
 
-	if context.state.read().unwrap().welcome().is_none() {
+	let state = &mut context.state.write().unwrap();
+
+	if let Some(welcome) = state.welcome_mut() {
+		match validate_welcome_message(&client, channel, welcome.message(), &content).await {
+			Ok(_) => return,
+			Err(e) => match e {
+				WelcomeError::MessageNotFound => {
+					let message = post_welcome_message(&client, channel, content).await;
+					welcome.set_message(message.id);
+					if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, state) {
+						eprintln!("Couldn't write state to file!");
+					}
+				},
+				WelcomeError::WrongContent => {
+					edit_welcome_message(&client, channel, welcome.message(), content).await;
+				},
+				WelcomeError::Other => return,
+			}
+		}
+	} else {
 		let message = post_welcome_message(&client, channel, &content).await;
-		context.state.write().unwrap().set_welcome(crate::state::Welcome::new(message.id));
-		if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, &context.state.read().unwrap()) {
+		state.set_welcome(crate::state::Welcome::new(message.id));
+		if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, state) {
 			eprintln!("Couldn't write state to file!");
 		}
-    }
-
-	let message = context.state.read().unwrap().welcome().unwrap().message();
-	match validate_welcome_message(&client, channel, message, &content).await {
-		Ok(_) => return,
-		Err(e) => match e {
-			WelcomeError::MessageNotFound => {
-				let message = post_welcome_message(&client, channel, content).await;
-				context.state.write().unwrap().set_welcome(crate::state::Welcome::new(message.id));
-			},
-			WelcomeError::WrongContent => {
-				edit_welcome_message(&client, channel, message, content).await;
-			},
-			WelcomeError::Other => return,
-		}
-	}
-
-	if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, &context.state.read().unwrap()) {
-		eprintln!("Couldn't write state to file!");
 	}
 }
