@@ -313,7 +313,7 @@ async fn main() {
 			.name("member")
 			.description("INSERT DESC")
 			.command(member_verify)
-			.command(member_purge))
+			/*.command(member_purge)*/)
 		.build());
 
 	let result = framework.register_guild_commands(context.config.guild()).await;
