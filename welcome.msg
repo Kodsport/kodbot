@@ -24,6 +24,6 @@ För att det ska vara trevligt på servern så har vi följande regler man ska f
 
 <:wa:519296548069441556> Skicka inte NSFW-bilder/videor/texter eller diskriminerande meddelanden.
 
-Bryter du mot ovanstående regler kan du bli banlyst.
+Bryter du mot ovanstående regler kan du bli bannlyst från servern.
 
 Om det dyker upp någon fråga eller fundering så kan du kontakta <@&407150862046199808>.
