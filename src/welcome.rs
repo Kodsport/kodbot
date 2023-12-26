@@ -60,6 +60,7 @@ pub async fn handle_welcome_message(client: &Client, context: Arc<Context>) {
 		None => return, // There is no message to handle.
 	};
 
+	let state_path = &context.state_path;
 	let state = &mut context.state.write().unwrap();
 
 	if let Some(welcome) = state.welcome_mut() {
@@ -69,7 +70,7 @@ pub async fn handle_welcome_message(client: &Client, context: Arc<Context>) {
 				WelcomeError::MessageNotFound => {
 					let message = post_welcome_message(&client, channel, content).await;
 					welcome.set_message(message.id);
-					if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, state) {
+					if let Err(_) = crate::state::to_file(state_path, state) {
 						eprintln!("Couldn't write state to file!");
 					}
 				},
@@ -82,7 +83,7 @@ pub async fn handle_welcome_message(client: &Client, context: Arc<Context>) {
 	} else {
 		let message = post_welcome_message(&client, channel, &content).await;
 		state.set_welcome(crate::state::Welcome::new(message.id));
-		if let Err(_) = crate::state::to_file(crate::state::DEFAULT_PATH, state) {
+		if let Err(_) = crate::state::to_file(state_path, state) {
 			eprintln!("Couldn't write state to file!");
 		}
 	}

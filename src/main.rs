@@ -27,6 +27,7 @@ pub struct Context {
 	config: config::Config,
 	secrets: secrets::Secrets,
 	state: RwLock<state::State>,
+	state_path: PathBuf,
 }
 
 #[check]
@@ -220,11 +221,12 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 				
 				let role = role.id;
 
+				let state_path = &ctx.data.state_path;
 				let state = &mut ctx.data.state.write().unwrap();
 
 				state.member_mut().unwrap().set_role(role);
 
-				if let Err(_) = state::to_file(crate::state::DEFAULT_PATH, &state) {
+				if let Err(_) = state::to_file(state_path, &state) {
 					eprintln!("Couldn't write state to file!");
 				}
 
@@ -273,18 +275,17 @@ async fn main() {
 	let matches = cli.get_matches();
 
 	// SAFETY We supplied a default value to the argument, so this is always Some.
-	let secrets = matches.get_one::<PathBuf>("secrets").unwrap();
-	let secrets = std::fs::read_to_string(secrets).expect("Couldn't read secrets.");
+	let secrets_path = matches.get_one::<PathBuf>("secrets").unwrap();
+	let config_path = matches.get_one::<PathBuf>("config").unwrap();
+	let state_path = matches.get_one::<PathBuf>("state").unwrap();
+
+	let secrets = std::fs::read_to_string(secrets_path).expect("Couldn't read secrets.");
 	let secrets: secrets::Secrets = toml::from_str(&secrets).expect("Couldn't read secrets.");
 
-	// SAFETY We supplied a default value to the argument, so this is always Some.
-	let config = matches.get_one::<PathBuf>("config").unwrap();
-	let config = std::fs::read_to_string(config).expect("Couldn't read configuration.");
+	let config = std::fs::read_to_string(config_path).expect("Couldn't read configuration.");
 	let config: config::Config = toml::from_str(&config).expect("Couldn't read configuration.");
 
-	// SAFETY We supplied a default value to the argument, so this is always Some.
-	let state = matches.get_one::<PathBuf>("state").unwrap();
-	let state = match state::from_file(state) {
+	let state = match state::from_file(state_path) {
 		Ok(state) => state,
 		Err(e) => match e {
 			state::StateError::NotFound => state::State::new(),
@@ -296,6 +297,7 @@ async fn main() {
 		config: config,
 		secrets: secrets,
 		state: RwLock::new(state),
+		state_path: state_path.clone(),
 	});
 
 	let client = Arc::new(Client::new(context.secrets.discord.token.clone()));
@@ -334,7 +336,7 @@ async fn main() {
 			state.set_member(state::Member::new(role));
 		}
 
-		if let Err(_) = state::to_file(crate::state::DEFAULT_PATH, state) {
+		if let Err(_) = state::to_file(state_path, state) {
 			eprintln!("Couldn't write state to file!");
 		}
 	}
