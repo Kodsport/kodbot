@@ -1,0 +1,20 @@
+services:
+  kodbot:
+    # Since both image and build have been specified,
+    # Compose will try to use an existing image with the given name
+    # and if it isn't found it will build it.
+    # A build can be manually triggered using `docker compose build`
+    # or with `docker compose up --build`.
+    # https://docs.docker.com/compose/compose-file/build/#consistency-with-image
+    image: kodbot:latest
+    build: .
+    container_name: kodbot
+    volumes:
+      - type: volume
+        source: state
+        target: /app/state
+    command: ["--config", "config.toml", "--secrets", "secrets.toml", "--state", "state/state.toml"]
+
+volumes:
+  state:
+    name: kodbot_state
