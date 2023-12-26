@@ -1,3 +1,5 @@
+use clap::{Command, Arg, value_parser};
+
 use twilight_http::Client;
 use twilight_gateway::{Shard, ShardId, Intents, Event};
 use twilight_model::channel::message::MessageFlags;
@@ -11,6 +13,7 @@ use vesper::context::SlashContext;
 
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::path::PathBuf;
 
 mod config;
 mod state;
@@ -247,13 +250,41 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 
 #[tokio::main]
 async fn main() {
-	let s = std::fs::read_to_string(secrets::DEFAULT_PATH).expect("Couldn't read secrets.");
-	let secrets: secrets::Secrets = toml::from_str(&s).expect("Couldn't read secrets.");
+	let cli = Command::new("kodbot")
+		.arg(Arg::new("config")
+			.long("config")
+			.required(false)
+			.value_name("FILE")
+			.default_value(config::DEFAULT_PATH)
+			.value_parser(value_parser!(PathBuf)))
+		.arg(Arg::new("secrets")
+			.long("secrets")
+			.required(false)
+			.value_name("FILE")
+			.default_value(secrets::DEFAULT_PATH)
+			.value_parser(value_parser!(PathBuf)))
+		.arg(Arg::new("state")
+			.long("state")
+			.required(false)
+			.value_name("FILE")
+			.default_value(state::DEFAULT_PATH)
+			.value_parser(value_parser!(PathBuf)));
 
-	let s = std::fs::read_to_string(config::DEFAULT_PATH).expect("Couldn't read configuration.");
-	let config: config::Config = toml::from_str(&s).expect("Couldn't read configuration.");
+	let matches = cli.get_matches();
 
-	let state = match state::from_file(state::DEFAULT_PATH) {
+	// SAFETY We supplied a default value to the argument, so this is always Some.
+	let secrets = matches.get_one::<PathBuf>("secrets").unwrap();
+	let secrets = std::fs::read_to_string(secrets).expect("Couldn't read secrets.");
+	let secrets: secrets::Secrets = toml::from_str(&secrets).expect("Couldn't read secrets.");
+
+	// SAFETY We supplied a default value to the argument, so this is always Some.
+	let config = matches.get_one::<PathBuf>("config").unwrap();
+	let config = std::fs::read_to_string(config).expect("Couldn't read configuration.");
+	let config: config::Config = toml::from_str(&config).expect("Couldn't read configuration.");
+
+	// SAFETY We supplied a default value to the argument, so this is always Some.
+	let state = matches.get_one::<PathBuf>("state").unwrap();
+	let state = match state::from_file(state) {
 		Ok(state) => state,
 		Err(e) => match e {
 			state::StateError::NotFound => state::State::new(),
