@@ -180,70 +180,165 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 		false
 	}).await.expect("Error waiting for member purge response.");
 
-	let response = if let Some(InteractionData::MessageComponent(data)) = &interaction.data {
-		// SAFETY We know that the interaction starts with the id, so we can split at colon to get the button.
-		let (_, button) = data.custom_id.split_once(':').unwrap();
-		match button {
-			"member_purge_confirm" => {
-				// There are two ways to purge:
-				// 1. Get all guild members,
-				//    filter out those that belong to the member role,
-				//    remove them from the role.
-				// 2. Remove the role entirely and recreate it.
-				// The second option should be easier to implement and less prone to errors.
-				// Plus, Discord doesn't have to send all member data to us.
-				// Before deleting the role, we will fetch the current information,
-				// so we can feed that into the creation in order to preserve any manual changes in the guild.
-
-				let guild = ctx.data.config.guild();
-				let role = ctx.data.state.read().unwrap().member().unwrap().role();
-
-				// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
-				let roles = ctx.http_client().roles(guild).await
-					.expect("Couldn't fetch roles.")
-					.models().await
-					.expect("Couldn't serialize response.");
-
-				// SAFETY At startup we made sure that the member role existed,
-				// so we can still expect the role to exist.
-				let role_info = roles.iter().find(|r| r.id == role).unwrap();
-
-				ctx.http_client().delete_role(guild, role).await.expect("Couldn't delete role.");
-
-				// TODO Some properties aren't forwarded here.
-				let role = ctx.http_client().create_role(guild)
-					.color(role_info.color)
-					.hoist(role_info.hoist)
-					.mentionable(role_info.mentionable)
-					.name(role_info.name.as_str())
-					.permissions(role_info.permissions).await
-					.expect("Couldn't create role")
-					.model().await
-					.expect("Couldn't serialize response.");
-				
-				let role = role.id;
-
-				let state_path = &ctx.data.state_path;
-				let state = &mut ctx.data.state.write().unwrap();
-
-				state.member_mut().unwrap().set_role(role);
-
-				if let Err(_) = state::to_file(state_path, &state) {
-					eprintln!("Couldn't write state to file!");
-				}
-
-				"The member role was successfully purged. Remember to tell people to register for a new membership!"
-			},
-			"member_purge_cancel" => "Better safe than sorry!",
-			_ => unreachable!(),
-		}
+	let action = if let Some(InteractionData::MessageComponent(data)) = &interaction.data {
+		// SAFETY We know that the interaction starts with the id, so we can split at colon to get the action.
+		let (_, action) = data.custom_id.split_once(':').unwrap();
+		action
 	} else {
 		unreachable!()
 	};
 
-	let r = ctx.interaction_client.update_response(&ctx.interaction.token)
-		.content(Some(response)).expect("Response content was malformed.")
-		.components(None).expect("Components was malformed.")
+	match action {
+		"member_purge_confirm" => {
+			let response = format!("I am collecting the necessary data to remove all users from <@&{}>.", ctx.data.state.read().unwrap().member().unwrap().role());
+
+			let r = ctx.interaction_client.update_response(&ctx.interaction.token)
+				.content(Some(&response)).expect("Response content was malformed.")
+				.components(None).expect("Components was malformed.")
+				.await;
+			if r.is_err() {
+				eprintln!("Something went wrong when responding to command.");
+			}
+		},
+		"member_purge_cancel" => {
+			let r = ctx.interaction_client.update_response(&ctx.interaction.token)
+				.content(Some("Better safe than sorry!")).expect("Response content was malformed.")
+				.components(None).expect("Components was malformed.")
+				.await;
+			if r.is_err() {
+				eprintln!("Something went wrong when responding to command.");
+			}
+			return Ok(());
+		},
+		_ => unreachable!(),
+	}
+
+	let guild = ctx.data.config.guild();
+	let role = ctx.data.state.read().unwrap().member().unwrap().role();
+
+	// Get all members in the guild.
+	let mut members = Vec::new();
+	let mut after = None;
+	const MEMBER_LIMIT: u16 = 1000;
+
+	loop {
+		// NOTE This requires the GUILD_MEMBERS priviledged intent.
+		let mut req = ctx.http_client()
+			.guild_members(guild);
+		req = req.limit(MEMBER_LIMIT).expect("Invalid limit.");
+		if let Some(id) = after {
+			req = req.after(id);
+		}
+
+		let mut users =
+			req.await.expect("Couldn't get members.")
+			.models().await.expect("Couldn't serialize response.");
+
+		// If we didn't get any users
+		if users.is_empty() {
+			break;
+		}
+
+		// SAFETY We can unwrap since we breaked if the list was empty.
+		let last_id = users.last().unwrap().user.id;
+
+		after = Some(last_id);
+
+		// If we received less users than we requested,
+		// then we won't get any more in a subsequent request.
+		let done = users.len() < MEMBER_LIMIT as usize;
+
+		// Retain the users that have the member role.
+		users.retain(|user| user.roles.contains(&role));
+
+		members.append(&mut users);
+
+		if done {
+			break;
+		}
+	}
+
+	let content = format!("Found {0} members in <@&{1}>. Do you want me to remove them from <@&{1}>?", members.len(), ctx.data.state.read().unwrap().member().unwrap().role());
+	let buttons = vec![Component::ActionRow(ActionRow {
+					components: vec![
+						Component::Button(Button {
+							custom_id: Some(format!("{}:member_purge_cancel", id)),
+							label: Some(String::from("Cancel")),
+							style: ButtonStyle::Secondary,
+							disabled: false,
+							emoji: None,
+							url: None,
+						}),
+						Component::Button(Button {
+							custom_id: Some(format!("{}:member_purge_confirm", id)),
+							label: Some(String::from("Continue")),
+							style: ButtonStyle::Danger,
+							disabled: false,
+							emoji: None,
+							url: None,
+						})],
+				})];
+	let message = ctx.interaction_client.create_followup(&ctx.interaction.token)
+		.content(&content).expect("Response content was malformed.")
+		.components(&buttons).expect("Components was malformed.")
+		.flags(MessageFlags::EPHEMERAL)
+		.await.expect("Something went wrong when responding to command.")
+		.model().await.expect("Couldn't deserialize message.");
+	let confirmation_message_id = message.id;
+
+	let interaction = ctx.wait_interaction(move |interaction| {
+		if let Some(InteractionData::MessageComponent(data)) = &interaction.data {
+			if data.custom_id.starts_with(&id.to_string()) {
+				return true;
+			}
+		}
+		false
+	}).await.expect("Error waiting for member purge response.");
+
+	let action = if let Some(InteractionData::MessageComponent(data)) = &interaction.data {
+		// SAFETY We know that the interaction starts with the id, so we can split at colon to get the action.
+		let (_, action) = data.custom_id.split_once(':').unwrap();
+		action
+	} else {
+		unreachable!()
+	};
+
+	match action {
+		"member_purge_confirm" => {
+			let r = ctx.interaction_client.update_followup(&ctx.interaction.token, confirmation_message_id)
+				.content(Some(&format!("I will remove {} members from <@&{}>.", members.len(), ctx.data.state.read().unwrap().member().unwrap().role()))).expect("Response content was malformed.")
+				.components(None).expect("Components was malformed.")
+				.await;
+			if r.is_err() {
+				eprintln!("Something went wrong when responding to command.");
+			}
+		},
+		"member_purge_cancel" => {
+			let r = ctx.interaction_client.update_followup(&ctx.interaction.token, confirmation_message_id)
+				.content(Some("Won't proceed with deleting the members.")).expect("Response content was malformed.")
+				.components(None).expect("Components was malformed.")
+				.await;
+			if r.is_err() {
+				eprintln!("Something went wrong when responding to command.");
+			}
+			return Ok(());
+		},
+		_ => unreachable!(),
+	}
+
+	// Remove the role from each member.
+	for member in members {
+		let user = member.user.id;
+		// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
+		ctx.http_client()
+			.remove_guild_member_role(guild, user, role)
+			.await.expect("Couldn't remove role from member.");
+	}
+
+	// Say that we are done with the purge.
+	let r = ctx.interaction_client.create_followup(&ctx.interaction.token)
+		.content(&format!("I have removed all members from <@&{}>.", ctx.data.state.read().unwrap().member().unwrap().role())).expect("Response content was malformed.")
+		.flags(MessageFlags::EPHEMERAL)
 		.await;
 	if r.is_err() {
 		eprintln!("Something went wrong when responding to command.");
