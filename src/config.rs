@@ -27,7 +27,7 @@ pub struct Ebas {
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Member {
-	name: String,
+	role: Id<RoleMarker>,
 	permission: MemberPermission,
 }
 
@@ -91,8 +91,8 @@ impl Ebas {
 }
 
 impl Member {
-	pub fn name(&self) -> &String {
-		&self.name
+	pub fn role(&self) -> Id<RoleMarker> {
+		self.role
 	}
 
 	pub fn permission(&self) -> &MemberPermission {

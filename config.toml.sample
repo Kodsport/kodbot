@@ -16,7 +16,7 @@ file = "welcome.txt"
 url = "https://ebas.<something>.se/apis"
 
 [member]
-name = "<member role name>"
+role = "<role id>"
 
 [member.permission]
 purge = [{ role = "<role id>" }, { user = "<user id>" }]

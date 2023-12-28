@@ -100,7 +100,7 @@ async fn member_verify(
 
 		let guild = ctx.data.config.guild();
 		let user = user.id;
-		let role = ctx.data.state.read().unwrap().member().unwrap().role();
+		let role = ctx.data.config.member().role();
 
 		// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
 		ctx.http_client().add_guild_member_role(guild, user, role).await.expect("Couldn't add role to member.");
@@ -137,10 +137,14 @@ async fn member_verify(
 #[checks(member_purge_permission)]
 async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult {
 	let id = ctx.interaction.id;
+
+	let guild = ctx.data.config.guild();
+	let role = ctx.data.config.member().role();
+
 	let response = InteractionResponse {
 		kind: InteractionResponseType::ChannelMessageWithSource,
 		data: Some(InteractionResponseData {
-			content: Some(format!("Are you sure that you want to remove *all* members from <@&{}>?", ctx.data.state.read().unwrap().member().unwrap().role())),
+			content: Some(format!("Are you sure that you want to remove *all* members from <@&{}>?", role)),
 			components: Some(
 				vec![Component::ActionRow(ActionRow {
 					components: vec![
@@ -190,7 +194,7 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 
 	match action {
 		"member_purge_confirm" => {
-			let response = format!("I am collecting the necessary data to remove all users from <@&{}>.", ctx.data.state.read().unwrap().member().unwrap().role());
+			let response = format!("I am collecting the necessary data to remove all users from <@&{}>.", role);
 
 			let r = ctx.interaction_client.update_response(&ctx.interaction.token)
 				.content(Some(&response)).expect("Response content was malformed.")
@@ -212,9 +216,6 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 		},
 		_ => unreachable!(),
 	}
-
-	let guild = ctx.data.config.guild();
-	let role = ctx.data.state.read().unwrap().member().unwrap().role();
 
 	// Get all members in the guild.
 	let mut members = Vec::new();
@@ -258,7 +259,7 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 		}
 	}
 
-	let content = format!("Found {0} members in <@&{1}>. Do you want me to remove them from <@&{1}>?", members.len(), ctx.data.state.read().unwrap().member().unwrap().role());
+	let content = format!("Found {0} members in <@&{1}>. Do you want me to remove them from <@&{1}>?", members.len(), role);
 	let buttons = vec![Component::ActionRow(ActionRow {
 					components: vec![
 						Component::Button(Button {
@@ -306,7 +307,7 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 	match action {
 		"member_purge_confirm" => {
 			let r = ctx.interaction_client.update_followup(&ctx.interaction.token, confirmation_message_id)
-				.content(Some(&format!("I will remove {} members from <@&{}>.", members.len(), ctx.data.state.read().unwrap().member().unwrap().role()))).expect("Response content was malformed.")
+				.content(Some(&format!("I will remove {} members from <@&{}>.", members.len(), role))).expect("Response content was malformed.")
 				.components(None).expect("Components was malformed.")
 				.await;
 			if r.is_err() {
@@ -337,7 +338,7 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 
 	// Say that we are done with the purge.
 	let r = ctx.interaction_client.create_followup(&ctx.interaction.token)
-		.content(&format!("I have removed all members from <@&{}>.", ctx.data.state.read().unwrap().member().unwrap().role())).expect("Response content was malformed.")
+		.content(&format!("I have removed all members from <@&{}>.", role)).expect("Response content was malformed.")
 		.flags(MessageFlags::EPHEMERAL)
 		.await;
 	if r.is_err() {
@@ -401,49 +402,12 @@ async fn main() {
 
 	welcome::handle_welcome_message(&client, Arc::clone(&context)).await;
 
-	{
-		let name = context.config.member().name();
-		// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
-		let roles = client.roles(context.config.guild()).await
-			.expect("Couldn't fetch roles.")
-			.models().await
-			.expect("Couldn't serialize response.");
-
-		let role = roles.iter().find(|role| &role.name == name);
-
-		let role = if let Some(role) = role {
-			role.id
-		} else {
-			// The role does not exist in the guild, so we create it.
-			// NOTE This requires the MANAGE_ROLES permission when adding the bot to a guild.
-			let role = client.create_role(context.config.guild()).name(name).await
-				.expect("Couldn't create role")
-				.model().await
-				.expect("Couldn't serialize response.");
-			role.id
-		};
-
-		let state = &mut context.state.write().unwrap();
-
-		if let Some(member) = state.member_mut() {
-			if member.role() != role {
-				member.set_role(role);
-			}
-		} else {
-			state.set_member(state::Member::new(role));
-		}
-
-		if let Err(_) = state::to_file(state_path, state) {
-			eprintln!("Couldn't write state to file!");
-		}
-	}
-
 	let framework = Arc::new(Framework::builder(Arc::clone(&client), context.secrets.discord.application, Arc::clone(&context))
 		.group(|g| g
 			.name("member")
 			.description("INSERT DESC")
 			.command(member_verify)
-			/*.command(member_purge)*/)
+			.command(member_purge))
 		.build());
 
 	let result = framework.register_guild_commands(context.config.guild()).await;
