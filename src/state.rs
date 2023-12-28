@@ -5,6 +5,9 @@ use serde::{Serialize, Deserialize};
 
 pub const DEFAULT_PATH: &str = "state.toml";
 
+// WARNING The state is written when changed and read when the bot starts.
+// If this data structure is changed, the stored file have to be updated to
+// reflect those changes before the bot starts.
 #[derive(Deserialize, Serialize)]
 pub struct State {
 	welcome: Option<Welcome>,
