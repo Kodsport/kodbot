@@ -136,6 +136,7 @@ async fn member_verify(
 #[description = "Remove all users from the membership role"]
 #[checks(member_purge_permission)]
 async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult {
+	let id = ctx.interaction.id;
 	let response = InteractionResponse {
 		kind: InteractionResponseType::ChannelMessageWithSource,
 		data: Some(InteractionResponseData {
@@ -144,7 +145,7 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 				vec![Component::ActionRow(ActionRow {
 					components: vec![
 						Component::Button(Button {
-							custom_id: Some(String::from("member_purge_cancel")),
+							custom_id: Some(format!("{}:member_purge_cancel", id)),
 							label: Some(String::from("Cancel")),
 							style: ButtonStyle::Secondary,
 							disabled: false,
@@ -152,7 +153,7 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 							url: None,
 						}),
 						Component::Button(Button {
-							custom_id: Some(String::from("member_purge_confirm")),
+							custom_id: Some(format!("{}:member_purge_confirm", id)),
 							label: Some(String::from("Purge")),
 							style: ButtonStyle::Danger,
 							disabled: false,
@@ -170,18 +171,19 @@ async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult 
 		eprintln!("Something went wrong when responding to command.");
 	}
 
-	let interaction = ctx.wait_interaction(|interaction| {
+	let interaction = ctx.wait_interaction(move |interaction| {
 		if let Some(InteractionData::MessageComponent(data)) = &interaction.data {
-			data.custom_id == "member_purge_confirm" || data.custom_id == "member_purge_cancel"
-		} else {
-			false
+			if data.custom_id.starts_with(&id.to_string()) {
+				return true;
+			}
 		}
-	}).await;
-
-	let interaction = interaction.expect("Error waiting for member purge response.");
+		false
+	}).await.expect("Error waiting for member purge response.");
 
 	let response = if let Some(InteractionData::MessageComponent(data)) = &interaction.data {
-		match data.custom_id.as_str() {
+		// SAFETY We know that the interaction starts with the id, so we can split at colon to get the button.
+		let (_, button) = data.custom_id.split_once(':').unwrap();
+		match button {
 			"member_purge_confirm" => {
 				// There are two ways to purge:
 				// 1. Get all guild members,
