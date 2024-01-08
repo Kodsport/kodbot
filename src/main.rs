@@ -82,7 +82,7 @@ async fn member_purge_permission(ctx: &SlashContext<Arc<Context>>) -> Result<boo
 #[command(chat, name = "verify")]
 #[description = "Verify your membership"]
 async fn member_verify(
-	ctx: &SlashContext<Arc<Context>>,
+	ctx: &mut SlashContext<Arc<Context>>,
 	#[description = "The email you used when registering"]
 	email: String
 ) -> DefaultCommandResult {
@@ -135,7 +135,7 @@ async fn member_verify(
 #[command(chat, name = "purge")]
 #[description = "Remove all users from the membership role"]
 #[checks(member_purge_permission)]
-async fn member_purge(ctx: &SlashContext<Arc<Context>>) -> DefaultCommandResult {
+async fn member_purge(ctx: &mut SlashContext<Arc<Context>>) -> DefaultCommandResult {
 	let id = ctx.interaction.id;
 
 	let guild = ctx.data.config.guild();
