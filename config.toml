@@ -8,7 +8,7 @@ file = "welcome.msg"
 url = "https://ebas.ungvetenskapssport.se/apis"
 
 [member]
-name = "Medlem"
+role = "944005544560185385"
 
 [member.permission]
 # Only let @Styrelsen purge membership status
